@@ -13,14 +13,24 @@ ALLOWED_ROLES = ['admin','doctor','receptionist','patient']
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 CORS(app) # Allows local HTML file to fetch data from this API
 
 # Project paths and JWT config
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 FRONTEND_DIR = os.path.join(PROJECT_ROOT, 'frontend')
-JWT_SECRET = os.getenv("JWT_SECRET", "change_this_secret")
+JWT_SECRET = os.getenv("JWT_SECRET", "SECRET_KEY")
 JWT_ALGO = os.getenv("JWT_ALGO", "HS256")
+
+# ---------------- DATABASE CONNECTION ----------------
+def get_db_connection():
+    # open a fresh connection per request in a web app
+    return mysql.connector.connect(
+        host=os.getenv("DB_HOST"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME")
+    )
 
 # Helpers for auth
 
@@ -56,8 +66,8 @@ def ensure_users_table():
                     count = 0
         if count == 0:
             admin_username = os.getenv('ADMIN_USERNAME', 'admin')
-            admin_password = os.getenv('ADMIN_PASSWORD')
-            admin_full_name = os.getenv('ADMIN_FULL_NAME', 'Initial Admin')
+            admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
+            admin_full_name = os.getenv('ADMIN_FULL_NAME', 'System Administrator')
             generated = False
             if not admin_password:
                 admin_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
@@ -81,10 +91,11 @@ def ensure_users_table():
 
 # create users table on startup (silent if DB not configured yet)
 try:
+    print("Attempting to initialize Users table...")
     ensure_users_table()
-except Exception:
-    # DB might not be ready during local dev - skip table creation
-    pass
+    print("Users table check complete.")
+except Exception as e:
+    print(f"CRITICAL STARTUP ERROR: {e}")
 
 # Decorators for token verification and role checks
 
@@ -121,15 +132,7 @@ def require_role(*roles):
         return inner
     return wrapper
 
-# ---------------- DATABASE CONNECTION ----------------
-def get_db_connection():
-    # open a fresh connection per request in a web app
-    return mysql.connector.connect(
-        host=os.getenv("DB_HOST"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME")
-    )
+
 
 # ---------------- AUTH ----------------
 @app.route('/api/register', methods=['POST'])
@@ -366,39 +369,21 @@ def change_own_password():
         conn.close()
 
 
-# =====================================================
-# ================= PATIENT ROUTES ====================
-# =====================================================
-
-# From old show_patients()
-@app.route('/api/patients', methods=['GET'])
-def get_patients():
-    conn = get_db_connection()
-    # dictionary=True makes it easy to convert the rows to JSON
-    cursor = conn.cursor(dictionary=True) 
-    cursor.execute("SELECT * FROM Patient")
-    patients = cursor.fetchall()
-    
-    cursor.close()
-    conn.close()
-    return jsonify(patients)
-
-# From old insert_patient()
+# ---------------- PATIENT ROUTES ----------------
 @app.route('/api/patients', methods=['POST'])
 @token_required
 @require_role('admin','receptionist')
 def add_patient():
-    data = request.json # Get the data sent from the web frontend
-    
+    data = request.json
     conn = get_db_connection()
     cursor = conn.cursor()
-    
     try:
         cursor.execute("""
-        INSERT INTO Patient VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        INSERT INTO Patient (PatientID, FirstName, LastName, DOB, Gender, Phone, Address, ProviderID)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
-            data['PatientID'], data['FirstName'], data['LastName'], data['DOB'],
-            data['Gender'], data['Phone'], data['Address'], data['InsuranceProvider']
+            data.get('PatientID'), data.get('FirstName'), data.get('LastName'), data.get('DOB'),
+            data.get('Gender'), data.get('Phone'), data.get('Address'), data.get('ProviderID')
         ))
         conn.commit()
         return jsonify({"message": "Patient added successfully"}), 201
@@ -408,58 +393,7 @@ def add_patient():
         cursor.close()
         conn.close()
 
-# ---------------- PATIENT UPDATE / DELETE ----------------
-@app.route('/api/patients/<patient_id>', methods=['PUT'])
-@token_required
-@require_role('admin','receptionist')
-def update_patient(patient_id):
-    data = request.json
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-        UPDATE Patient SET FirstName=%s, LastName=%s, DOB=%s, Gender=%s,
-            Phone=%s, Address=%s, InsuranceProvider=%s WHERE PatientID=%s
-        """, (
-            data.get('FirstName'), data.get('LastName'), data.get('DOB'),
-            data.get('Gender'), data.get('Phone'), data.get('Address'),
-            data.get('InsuranceProvider'), patient_id
-        ))
-        conn.commit()
-        return jsonify({"message": "Patient updated successfully"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-    finally:
-        cursor.close()
-        conn.close()
-
-@app.route('/api/patients/<patient_id>', methods=['DELETE'])
-@token_required
-@require_role('admin','receptionist')
-def delete_patient(patient_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM Patient WHERE PatientID=%s", (patient_id,))
-        conn.commit()
-        return jsonify({"message": "Patient deleted"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-    finally:
-        cursor.close()
-        conn.close()
-
 # ---------------- DOCTOR ROUTES ----------------
-@app.route('/api/doctors', methods=['GET'])
-def get_doctors():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM Doctor")
-    doctors = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return jsonify(doctors)
-
 @app.route('/api/doctors', methods=['POST'])
 @token_required
 @require_role('admin')
@@ -468,9 +402,13 @@ def add_doctor():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO Doctor VALUES (%s,%s,%s,%s,%s,%s)",
-                       (data['DoctorID'], data['FirstName'], data['LastName'],
-                        data['Specialty'], data['Phone'], data['Department']))
+        cursor.execute("""
+        INSERT INTO Doctor (DoctorID, FirstName, LastName, Specialty, Phone, DepartmentID)
+        VALUES (%s,%s,%s,%s,%s,%s)
+        """, (
+            data.get('DoctorID'), data.get('FirstName'), data.get('LastName'),
+            data.get('Specialty'), data.get('Phone'), data.get('DepartmentID')
+        ))
         conn.commit()
         return jsonify({"message": "Doctor added successfully"}), 201
     except Exception as e:
@@ -479,54 +417,7 @@ def add_doctor():
         cursor.close()
         conn.close()
 
-@app.route('/api/doctors/<doctor_id>', methods=['PUT'])
-@token_required
-@require_role('admin')
-def update_doctor(doctor_id):
-    data = request.json
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-        UPDATE Doctor SET FirstName=%s, LastName=%s, Specialty=%s, Phone=%s, Department=%s
-        WHERE DoctorID=%s
-        """, (data.get('FirstName'), data.get('LastName'), data.get('Specialty'),
-              data.get('Phone'), data.get('Department'), doctor_id))
-        conn.commit()
-        return jsonify({"message": "Doctor updated successfully"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-    finally:
-        cursor.close()
-        conn.close()
-
-@app.route('/api/doctors/<doctor_id>', methods=['DELETE'])
-@token_required
-@require_role('admin')
-def delete_doctor(doctor_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM Doctor WHERE DoctorID=%s", (doctor_id,))
-        conn.commit()
-        return jsonify({"message": "Doctor deleted"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-    finally:
-        cursor.close()
-        conn.close()
-
 # ---------------- APPOINTMENT ROUTES ----------------
-@app.route('/api/appointments', methods=['GET'])
-def get_appointments():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM Appointment")
-    appts = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return jsonify(appts)
-
 @app.route('/api/appointments', methods=['POST'])
 @token_required
 @require_role('admin','receptionist','doctor')
@@ -535,10 +426,13 @@ def add_appointment():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO Appointment VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                       (data['AppointmentID'], data['PatientID'], data['DoctorID'],
-                        data['AppointmentDate'], data['AppointmentTime'],
-                        data['Status'], data['Purpose']))
+        cursor.execute("""
+        INSERT INTO Appointment (AppointmentID, PatientID, DoctorID, NurseID, AppointmentDate, AppointmentTime, Status, Purpose)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            data.get('AppointmentID'), data.get('PatientID'), data.get('DoctorID'), data.get('NurseID'),
+            data.get('AppointmentDate'), data.get('AppointmentTime'), data.get('Status'), data.get('Purpose')
+        ))
         conn.commit()
         return jsonify({"message": "Appointment added"}), 201
     except Exception as e:
@@ -547,37 +441,50 @@ def add_appointment():
         cursor.close()
         conn.close()
 
-@app.route('/api/appointments/<appt_id>', methods=['PUT'])
+# ---------------- HOSPITAL ADMIN ROUTES ----------------
+@app.route('/api/admins', methods=['GET'])
 @token_required
-@require_role('admin','receptionist','doctor')
-def update_appointment(appt_id):
+@require_role('admin')
+def get_hospital_admins():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM HospitalAdmin")
+    admins = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(admins)
+
+@app.route('/api/admins', methods=['POST'])
+@token_required
+@require_role('admin')
+def add_hospital_admin():
     data = request.json
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("""
-        UPDATE Appointment SET PatientID=%s, DoctorID=%s, AppointmentDate=%s,
-            AppointmentTime=%s, Status=%s, Purpose=%s WHERE AppointmentID=%s
-        """, (data.get('PatientID'), data.get('DoctorID'), data.get('AppointmentDate'),
-              data.get('AppointmentTime'), data.get('Status'), data.get('Purpose'), appt_id))
+        INSERT INTO HospitalAdmin (AdminID, FirstName, LastName, Email, Role)
+        VALUES (%s,%s,%s,%s,%s)
+        """, (data.get('AdminID'), data.get('FirstName'), data.get('LastName'),
+              data.get('Email'), data.get('Role')))
         conn.commit()
-        return jsonify({"message": "Appointment updated"})
+        return jsonify({"message": "Hospital Admin added"}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 400
     finally:
         cursor.close()
         conn.close()
 
-@app.route('/api/appointments/<appt_id>', methods=['DELETE'])
+@app.route('/api/admins/<admin_id>', methods=['DELETE'])
 @token_required
-@require_role('admin','receptionist','doctor')
-def delete_appointment(appt_id):
+@require_role('admin')
+def delete_hospital_admin(admin_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM Appointment WHERE AppointmentID=%s", (appt_id,))
+        cursor.execute("DELETE FROM HospitalAdmin WHERE AdminID=%s", (admin_id,))
         conn.commit()
-        return jsonify({"message": "Appointment deleted"})
+        return jsonify({"message": "Hospital Admin deleted"})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
     finally:

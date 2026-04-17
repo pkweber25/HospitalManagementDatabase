@@ -78,6 +78,11 @@ async function fetchUsers(){
   const data = await res.json(); buildUsersTable(data);
 }
 
+async function fetchAdmins(){
+  const res = await authFetch('/api/admins');
+  const data = await res.json(); buildTable('admins-table',data);
+}
+
 // Auth handlers
 document.getElementById('login-form').addEventListener('submit', async e=>{
   e.preventDefault(); const form = new FormData(e.target); const obj = Object.fromEntries(form.entries());
@@ -92,8 +97,11 @@ document.getElementById('login-form').addEventListener('submit', async e=>{
     document.getElementById('logged-out').style.display='none';
     document.getElementById('logged-in').style.display='block';
     document.getElementById('user-info').textContent = 'Signed in as: '+ (data.username || '');
-    if(role==='admin') document.getElementById('nav-users').style.display='inline-block';
-    fetchPatients(); fetchDoctors(); fetchAppts(); if(role==='admin') fetchUsers();
+    if(role==='admin') {
+      document.getElementById('nav-users').style.display='inline-block';
+      document.getElementById('nav-admins').style.display='inline-block';
+    }
+    fetchPatients(); fetchDoctors(); fetchAppts(); if(role==='admin') { fetchUsers(); fetchAdmins(); }
   } else { alert('Login failed'); }
 });
 
@@ -104,7 +112,7 @@ document.getElementById('register-form').addEventListener('submit', async e=>{
 });
 
 document.getElementById('logout-btn').addEventListener('click', e=>{
-  token = null; role = null; localStorage.removeItem('token'); localStorage.removeItem('username'); localStorage.removeItem('role'); document.getElementById('logged-out').style.display='block'; document.getElementById('logged-in').style.display='none'; document.getElementById('user-info').textContent=''; document.getElementById('nav-users').style.display='none';
+  token = null; role = null; localStorage.removeItem('token'); localStorage.removeItem('username'); localStorage.removeItem('role'); document.getElementById('logged-out').style.display='block'; document.getElementById('logged-in').style.display='none'; document.getElementById('user-info').textContent=''; document.getElementById('nav-users').style.display='none'; document.getElementById('nav-admins').style.display='none';
 });
 
 // Change own password
@@ -139,12 +147,22 @@ if(document.getElementById('appt-form')){
   });
 }
 
+if(document.getElementById('admin-form')){
+  document.getElementById('admin-form').addEventListener('submit', async e=>{
+    e.preventDefault(); const form=new FormData(e.target); const obj=Object.fromEntries(form.entries());
+    const res = await authFetch('/api/admins',{method:'POST',body:JSON.stringify(obj)}); 
+    if(res.ok) { e.target.reset(); fetchAdmins(); } 
+    else { const err = await res.json(); alert('Admin Error: ' + err.error); }
+  });
+}
+
 // delete based on table id
 async function delRow(tableId,row){
   if(tableId==='patients-table') await authFetch('/api/patients/'+encodeURIComponent(row.PatientID),{method:'DELETE'});
   if(tableId==='doctors-table') await authFetch('/api/doctors/'+encodeURIComponent(row.DoctorID),{method:'DELETE'});
   if(tableId==='appts-table') await authFetch('/api/appointments/'+encodeURIComponent(row.AppointmentID),{method:'DELETE'});
-  fetchPatients(); fetchDoctors(); fetchAppts();
+  if(tableId==='admins-table') await authFetch('/api/admins/'+encodeURIComponent(row.AdminID),{method:'DELETE'});
+  fetchPatients(); fetchDoctors(); fetchAppts(); fetchAdmins();
 }
 
 // Admin actions
@@ -189,6 +207,10 @@ if(localStorage.getItem('token')){
   document.getElementById('logged-out').style.display='none'; 
   document.getElementById('logged-in').style.display='block'; 
   document.getElementById('user-info').textContent = 'Signed in as: '+ (localStorage.getItem('username')||''); 
-  if(role==='admin') document.getElementById('nav-users').style.display='inline-block';
+  if(role==='admin') {
+    document.getElementById('nav-users').style.display='inline-block';
+    document.getElementById('nav-admins').style.display='inline-block';
+  }
+  document.getElementById('nav-admins').style.display='inline-block';
 }
-showTab('patients'); fetchPatients(); fetchDoctors(); fetchAppts(); if(role==='admin') fetchUsers();
+showTab('patients'); fetchPatients(); fetchDoctors(); fetchAppts(); if(role==='admin') { fetchUsers(); fetchAdmins(); }

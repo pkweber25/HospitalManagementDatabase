@@ -8,12 +8,13 @@
 </head>
 <body>
   <header>
-    <h1>Hospital Management (Web)</h1>
+    <h1>Hospital Management</h1>
     <nav>
       <button onclick="showTab('patients')">Patients</button>
       <button onclick="showTab('doctors')">Doctors</button>
       <button onclick="showTab('appointments')">Appointments</button>
-      <button id="nav-users" onclick="showTab('users')" style="display:none">Users</button>
+      <button id="nav-admins" onclick="showTab('admins')" style="display:none">Hospital Admins</button>
+      <button id="nav-users" onclick="showTab('users')" style="display:none">System Logins</button>
     </nav>
     <div id="auth">
       <div id="logged-out">
@@ -48,11 +49,22 @@
         <input name="PatientID" placeholder="ID" required>
         <input name="FirstName" placeholder="First" required>
         <input name="LastName" placeholder="Last" required>
-        <input name="DOB" placeholder="YYYY-MM-DD">
-        <input name="Gender" placeholder="Gender">
+        <input name="DOB" placeholder="YYYY-MM-DD" type="date">
+        <select name="Gender">
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Other">Other</option>
+        </select>
         <input name="Phone" placeholder="Phone">
         <input name="Address" placeholder="Address">
-        <input name="InsuranceProvider" placeholder="Insurance">
+        <select name="ProviderID" required>
+          <option value="" disabled selected>Select Insurance</option>
+          <option value="1">BlueCross Health</option>
+          <option value="2">Aetna Secure</option>
+          <option value="3">Medicare Standard</option>
+          <option value="4">Cigna Care</option>
+          <option value="5">UnitedHealth Group</option>
+        </select>
         <button type="submit">Add Patient</button>
       </form>
       <table id="patients-table"><thead><tr></tr></thead><tbody></tbody></table>
@@ -66,7 +78,14 @@
         <input name="LastName" placeholder="Last" required>
         <input name="Specialty" placeholder="Specialty">
         <input name="Phone" placeholder="Phone">
-        <input name="Department" placeholder="Department">
+        <select name="DepartmentID" required>
+          <option value="" disabled selected>Select Department</option>
+          <option value="1">Cardiology</option>
+          <option value="2">Pediatrics</option>
+          <option value="3">Emergency</option>
+          <option value="4">Oncology</option>
+          <option value="5">Neurology</option>
+        </select>
         <button type="submit">Add Doctor</button>
       </form>
       <table id="doctors-table"><thead><tr></tr></thead><tbody></tbody></table>
@@ -76,11 +95,16 @@
       <h2>Appointments</h2>
       <form id="appt-form">
         <input name="AppointmentID" placeholder="ID" required>
-        <input name="PatientID" placeholder="PatientID" required>
-        <input name="DoctorID" placeholder="DoctorID" required>
-        <input name="AppointmentDate" placeholder="YYYY-MM-DD">
-        <input name="AppointmentTime" placeholder="HH:MM">
-        <input name="Status" placeholder="Status">
+        <input name="PatientID" placeholder="Patient ID (e.g., 1)" required>
+        <input name="DoctorID" placeholder="Doctor ID (e.g., 1)" required>
+        <input name="NurseID" placeholder="Nurse ID (e.g., 1)" required>
+        <input name="AppointmentDate" type="date" required>
+        <input name="AppointmentTime" type="time" required>
+        <select name="Status">
+          <option value="Scheduled">Scheduled</option>
+          <option value="Completed">Completed</option>
+          <option value="Canceled">Canceled</option>
+        </select>
         <input name="Purpose" placeholder="Purpose">
         <button type="submit">Add Appointment</button>
       </form>
@@ -88,7 +112,7 @@
     </section>
 
     <section id="users" class="tab" style="display:none">
-      <h2>Users (Admin)</h2>
+      <h2>System Logins & Passwords</h2>
       <form id="create-user-form">
         <input name="username" placeholder="Username" required>
         <input name="password" placeholder="Password" type="password" required>
@@ -105,6 +129,23 @@
       <button id="refresh-users" onclick="fetchUsers()">Refresh</button>
     </section>
 
+    <section id="admins" class="tab" style="display:none">
+      <h2>Hospital Admins (Personnel)</h2>
+      <form id="admin-form">
+        <input name="AdminID" placeholder="Admin ID (e.g., 1)" required>
+        <input name="FirstName" placeholder="First Name" required>
+        <input name="LastName" placeholder="Last Name" required>
+        <input name="Email" placeholder="Email" required>
+        <select name="Role" required>
+          <option value="" disabled selected>Select Title</option>
+          <option value="Chief of Surgery">Chief of Surgery</option>
+          <option value="Chief of Staff">Chief of Staff</option>
+          <option value="IT Administrator">IT Administrator</option>
+        </select>
+        <button type="submit">Add Admin Record</button>
+      </form>
+      <table id="admins-table"><thead><tr></tr></thead><tbody></tbody></table>
+    </section>
   </main>
 
   <script src="/static/app.js"></script>
