@@ -393,6 +393,25 @@ def add_patient():
         cursor.close()
         conn.close()
 
+@app.route('/api/patients', methods=['GET'])
+@token_required
+@require_role('admin', 'receptionist', 'doctor') # Added doctor so they can view patients
+def get_patients():
+    conn = get_db_connection()
+    # Using a dictionary cursor (if supported by your DB driver) makes JSONifying much easier.
+    # If you are using psycopg2, it's cursor_factory=RealDictCursor
+    # If you are using mysql-connector, it's dictionary=True
+    cursor = conn.cursor(dictionary=True) 
+    try:
+        cursor.execute("SELECT * FROM Patient")
+        patients = cursor.fetchall()
+        return jsonify(patients), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
 # ---------------- DOCTOR ROUTES ----------------
 @app.route('/api/doctors', methods=['POST'])
 @token_required
@@ -411,6 +430,22 @@ def add_doctor():
         ))
         conn.commit()
         return jsonify({"message": "Doctor added successfully"}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/api/doctors', methods=['GET'])
+@token_required
+@require_role('admin', 'receptionist', 'doctor')
+def get_doctors():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM Doctor")
+        doctors = cursor.fetchall()
+        return jsonify(doctors), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
     finally:
@@ -441,6 +476,22 @@ def add_appointment():
         cursor.close()
         conn.close()
 
+@app.route('/api/appointments', methods=['GET'])
+@token_required
+@require_role('admin', 'receptionist', 'doctor')
+def get_appointments():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM Appointment")
+        appointments = cursor.fetchall()
+        return jsonify(appointments), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+        
 # ---------------- HOSPITAL ADMIN ROUTES ----------------
 @app.route('/api/admins', methods=['GET'])
 @token_required
