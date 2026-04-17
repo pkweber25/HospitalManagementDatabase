@@ -485,13 +485,23 @@ def get_appointments():
     try:
         cursor.execute("SELECT * FROM Appointment")
         appointments = cursor.fetchall()
+        
+        # FIX: Convert dates and times to strings so Flask can jsonify them
+        for appt in appointments:
+            if appt.get('AppointmentDate'):
+                appt['AppointmentDate'] = str(appt['AppointmentDate'])
+            if appt.get('AppointmentTime'):
+                appt['AppointmentTime'] = str(appt['AppointmentTime'])
+
         return jsonify(appointments), 200
     except Exception as e:
+        # Pro-tip: Print the error to your terminal so you can see exactly what failed!
+        print(f"Appointment GET Error: {e}") 
         return jsonify({"error": str(e)}), 400
     finally:
         cursor.close()
         conn.close()
-        
+
 # ---------------- HOSPITAL ADMIN ROUTES ----------------
 @app.route('/api/admins', methods=['GET'])
 @token_required
