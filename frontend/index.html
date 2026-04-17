@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Hospital Management</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Hospital Management (Web)</h1>
+    <nav>
+      <button onclick="showTab('patients')">Patients</button>
+      <button onclick="showTab('doctors')">Doctors</button>
+      <button onclick="showTab('appointments')">Appointments</button>
+      <button id="nav-users" onclick="showTab('users')" style="display:none">Users</button>
+    </nav>
+    <div id="auth">
+      <div id="logged-out">
+        <form id="login-form">
+          <input name="username" placeholder="Username" required>
+          <input name="password" placeholder="Password" type="password" required>
+          <button type="submit">Login</button>
+        </form>
+        <form id="register-form">
+          <input name="username" placeholder="Username" required>
+          <input name="password" placeholder="Password" type="password" required>
+          <input name="full_name" placeholder="Full Name (optional)">
+          <button type="submit">Register</button>
+        </form>
+      </div>
+      <div id="logged-in" style="display:none">
+        <span id="user-info"></span>
+        <button id="logout-btn">Logout</button>
+        <form id="change-password-form" style="display:inline-flex;gap:6px;margin-left:12px">
+          <input name="current_password" placeholder="Current password" type="password" required>
+          <input name="new_password" placeholder="New password" type="password" required>
+          <button type="submit">Change Password</button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="patients" class="tab">
+      <h2>Patients</h2>
+      <form id="patient-form">
+        <input name="PatientID" placeholder="ID" required>
+        <input name="FirstName" placeholder="First" required>
+        <input name="LastName" placeholder="Last" required>
+        <input name="DOB" placeholder="YYYY-MM-DD">
+        <input name="Gender" placeholder="Gender">
+        <input name="Phone" placeholder="Phone">
+        <input name="Address" placeholder="Address">
+        <input name="InsuranceProvider" placeholder="Insurance">
+        <button type="submit">Add Patient</button>
+      </form>
+      <table id="patients-table"><thead><tr></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section id="doctors" class="tab" style="display:none">
+      <h2>Doctors</h2>
+      <form id="doctor-form">
+        <input name="DoctorID" placeholder="ID" required>
+        <input name="FirstName" placeholder="First" required>
+        <input name="LastName" placeholder="Last" required>
+        <input name="Specialty" placeholder="Specialty">
+        <input name="Phone" placeholder="Phone">
+        <input name="Department" placeholder="Department">
+        <button type="submit">Add Doctor</button>
+      </form>
+      <table id="doctors-table"><thead><tr></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section id="appointments" class="tab" style="display:none">
+      <h2>Appointments</h2>
+      <form id="appt-form">
+        <input name="AppointmentID" placeholder="ID" required>
+        <input name="PatientID" placeholder="PatientID" required>
+        <input name="DoctorID" placeholder="DoctorID" required>
+        <input name="AppointmentDate" placeholder="YYYY-MM-DD">
+        <input name="AppointmentTime" placeholder="HH:MM">
+        <input name="Status" placeholder="Status">
+        <input name="Purpose" placeholder="Purpose">
+        <button type="submit">Add Appointment</button>
+      </form>
+      <table id="appts-table"><thead><tr></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section id="users" class="tab" style="display:none">
+      <h2>Users (Admin)</h2>
+      <form id="create-user-form">
+        <input name="username" placeholder="Username" required>
+        <input name="password" placeholder="Password" type="password" required>
+        <select name="role">
+          <option value="admin">admin</option>
+          <option value="doctor">doctor</option>
+          <option value="receptionist">receptionist</option>
+          <option value="patient" selected>patient</option>
+        </select>
+        <input name="full_name" placeholder="Full Name">
+        <button type="submit">Create User</button>
+      </form>
+      <table id="users-table"><thead><tr></tr></thead><tbody></tbody></table>
+      <button id="refresh-users" onclick="fetchUsers()">Refresh</button>
+    </section>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
