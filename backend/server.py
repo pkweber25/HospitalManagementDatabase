@@ -725,7 +725,7 @@ def delete_doctor(doctor_id):
 
 
 # ============================================================
-# NURSE  –  GET (new — was missing entirely)
+# NURSE  –  GET
 # ============================================================
 
 @app.route('/api/nurses', methods=['GET'])
