@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 //  CareFlow — app.js
 //  Role-based views:
 //    admin       → full access: patients, doctors, nurses,
@@ -657,12 +657,14 @@ if (portalForm) {
   portalForm.addEventListener('submit', async e => {
     e.preventDefault();
     const obj = Object.fromEntries(new FormData(e.target).entries());
-    // Find patient's own ID
-    const me = cachedPatients.find(p =>
-      `${p.FirstName} ${p.LastName}`.toLowerCase() === currentUsername.toLowerCase() ||
-      p.LastName.toLowerCase() === currentUsername.toLowerCase()
-    );
-    if (!me) {
+    // Fetch this patient's own linked record from the server
+    const meRes = await API.get('/api/patients/me');
+    if (!meRes.ok) {
+      toast('Your patient record was not found. Please contact reception.', 'error');
+      return;
+    }
+    const me = await meRes.json();
+    if (!me || !me.PatientID) {
       toast('Your patient record was not found. Please contact reception.', 'error');
       return;
     }
