@@ -562,6 +562,179 @@ def serve_index():
 def serve_static(filename):
     return send_from_directory(FRONTEND_DIR, filename)
 
+
+# ============================================================
+# PATIENT  –  update + delete
+# ============================================================
+
+@app.route('/api/patients/<int:patient_id>', methods=['PUT'])
+@token_required
+@require_role('admin', 'receptionist')
+def update_patient(patient_id):
+    data = request.json or {}
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE Patient
+               SET FirstName=%s, LastName=%s, DOB=%s, Gender=%s,
+                   Phone=%s, Address=%s, ProviderID=%s
+             WHERE PatientID=%s
+        """, (
+            data.get('FirstName'), data.get('LastName'), data.get('DOB'),
+            data.get('Gender'),    data.get('Phone'),    data.get('Address'),
+            data.get('ProviderID'), patient_id
+        ))
+        conn.commit()
+        return jsonify({'message': 'Patient updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/patients/<int:patient_id>', methods=['DELETE'])
+@token_required
+@require_role('admin', 'receptionist')
+def delete_patient(patient_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM Patient WHERE PatientID=%s", (patient_id,))
+        conn.commit()
+        return jsonify({'message': 'Patient deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================================
+# DOCTOR  –  update + delete
+# ============================================================
+
+@app.route('/api/doctors/<int:doctor_id>', methods=['PUT'])
+@token_required
+@require_role('admin')
+def update_doctor(doctor_id):
+    data = request.json or {}
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE Doctor
+               SET FirstName=%s, LastName=%s, Specialty=%s,
+                   Phone=%s, DepartmentID=%s
+             WHERE DoctorID=%s
+        """, (
+            data.get('FirstName'), data.get('LastName'), data.get('Specialty'),
+            data.get('Phone'), data.get('DepartmentID'), doctor_id
+        ))
+        conn.commit()
+        return jsonify({'message': 'Doctor updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/doctors/<int:doctor_id>', methods=['DELETE'])
+@token_required
+@require_role('admin')
+def delete_doctor(doctor_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM Doctor WHERE DoctorID=%s", (doctor_id,))
+        conn.commit()
+        return jsonify({'message': 'Doctor deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================================
+# NURSE  –  GET (new — was missing entirely)
+# ============================================================
+
+@app.route('/api/nurses', methods=['GET'])
+@token_required
+@require_role('admin', 'receptionist', 'doctor', 'nurse')
+def get_nurses():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM Nurse")
+        return jsonify(cursor.fetchall()), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================================
+# APPOINTMENT  –  update + delete
+# ============================================================
+
+@app.route('/api/appointments/<int:appt_id>', methods=['PUT'])
+@token_required
+@require_role('admin', 'receptionist', 'doctor', 'patient')
+def update_appointment(appt_id):
+    data = request.json or {}
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Patients may only update Status (to cancel their own)
+        if hasattr(g, 'current_user') and g.current_user.get('role') == 'patient':
+            cursor.execute(
+                "UPDATE Appointment SET Status=%s WHERE AppointmentID=%s",
+                (data.get('Status'), appt_id)
+            )
+        else:
+            cursor.execute("""
+                UPDATE Appointment
+                   SET PatientID=%s, DoctorID=%s, NurseID=%s,
+                       AppointmentDate=%s, AppointmentTime=%s,
+                       Status=%s, Purpose=%s
+                 WHERE AppointmentID=%s
+            """, (
+                data.get('PatientID'),       data.get('DoctorID'),
+                data.get('NurseID'),         data.get('AppointmentDate'),
+                data.get('AppointmentTime'), data.get('Status'),
+                data.get('Purpose'),         appt_id
+            ))
+        conn.commit()
+        # Serialize dates/times for the response
+        return jsonify({'message': 'Appointment updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/appointments/<int:appt_id>', methods=['DELETE'])
+@token_required
+@require_role('admin', 'receptionist', 'doctor')
+def delete_appointment(appt_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM Appointment WHERE AppointmentID=%s", (appt_id,))
+        conn.commit()
+        return jsonify({'message': 'Appointment deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
 if __name__ == '__main__':
     # Runs the server on localhost port 5000
     app.run(debug=True, port=5000)
