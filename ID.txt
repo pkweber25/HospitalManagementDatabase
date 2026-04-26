@@ -1,0 +1,24 @@
+Alejandro:
+    Planning/design phase involvement and participation in discussions throughout the semester on abstract direction of the project
+    Implementation phase:
+
+Benjamin:
+    Planning/design phase involvement and participation in discussions throughout the semester on abstract direction of the project
+    Implementation phase:
+
+Matthias: 
+    Planning/design phase involvement and participation in discussions throughout the semester on abstract direction of the project
+    Implementation phase:
+    Primary focus in front-end optimizations for user experience, especially after original skeleton had been completed.
+    Some expansions to backend functionality after original skeleton was completed.
+    Slide deck development and expansion
+
+Peter:
+    Planning/design phase involvement and participation in discussions throughout the semester on abstract direction of the project
+    Implementation phase:
+
+AI Disclosure:
+We aimed to complete most of this project with our own work, but due to time constraints
+as well as some tedious (yet extensive) requirements, we chose to use Claude Sonnet 4.6
+as an assistant to ourselves to help us make design decisions, troubleshoot, and draft 
+code segments within reason.
