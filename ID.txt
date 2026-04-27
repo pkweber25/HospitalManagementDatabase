@@ -1,21 +1,32 @@
 Alejandro:
     Planning/design phase involvement and participation in discussions throughout the semester on abstract direction of the project
     Implementation phase:
+    Development overview and consulting
 
 Benjamin:
     Planning/design phase involvement and participation in discussions throughout the semester on abstract direction of the project
     Implementation phase:
+    Backend development of original server.py skeleton
+    Dockerization
+    Movement towards web application
+    MySQL logic foundations
+
 
 Matthias: 
     Planning/design phase involvement and participation in discussions throughout the semester on abstract direction of the project
     Implementation phase:
-    Primary focus in front-end optimizations for user experience, especially after original skeleton had been completed.
-    Some expansions to backend functionality after original skeleton was completed.
-    Slide deck development and expansion
+    Primary focus in front-end optimizations for user experience, especially javascript and html files.
+    Notable extensions to backend server.py functionality to provide proper functionality for all user types.
+    Bug fixing and good code practice checks across entire repository
+    Slide deck skeleton development and filling out
 
 Peter:
     Planning/design phase involvement and participation in discussions throughout the semester on abstract direction of the project
     Implementation phase:
+    MySQL database initialization with schema and sample database
+    Initial GUI drafts from before implementation phase used as a guide for our final UI
+    Development of reporting facility
+    Filling out slide deck
 
 AI Disclosure:
 We aimed to complete most of this project with our own work, but due to time constraints
