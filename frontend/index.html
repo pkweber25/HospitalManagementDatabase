@@ -8,6 +8,50 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    /* ── Report layout ────────────────────────── */
+    .report-kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .kpi-card {
+      background: var(--surface, #fff);
+      border: 1px solid var(--border, #e5e7eb);
+      border-radius: 12px;
+      padding: 18px 16px 14px;
+      text-align: center;
+    }
+    .kpi-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted, #6b7280); margin-bottom: 6px; }
+    .kpi-value { font-size: 1.55rem; font-weight: 700; color: var(--accent, #4f46e5); line-height: 1.1; }
+    .kpi-sub   { font-size: 0.72rem; color: var(--text-muted, #6b7280); margin-top: 4px; }
+
+    .report-card {
+      background: var(--surface, #fff);
+      border: 1px solid var(--border, #e5e7eb);
+      border-radius: 14px;
+      padding: 22px 22px 18px;
+      margin-bottom: 28px;
+      overflow: hidden;
+    }
+    .report-card-header { margin-bottom: 14px; }
+    .report-title { font-size: 1rem; font-weight: 600; margin: 0 0 4px; }
+    .report-desc  { font-size: 0.78rem; color: var(--text-muted, #6b7280); margin: 0; }
+
+    /* ── Inline bar charts ────────────────────── */
+    .report-chart { margin-top: 18px; overflow-x: auto; }
+    .bar-chart-wrap { display: flex; flex-direction: column; gap: 8px; min-width: 320px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-label { font-size: 0.78rem; width: 160px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text, #111827); }
+    .bar-track { flex: 1; background: var(--surface-alt, #f3f4f6); border-radius: 6px; height: 22px; overflow: hidden; }
+    .bar-fill  { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 8px; font-size: 0.72rem; font-weight: 600; color: #fff; white-space: nowrap; transition: width .4s ease; }
+    .bar-fill.c1 { background: #4f46e5; }
+    .bar-fill.c2 { background: #0ea5e9; }
+    .bar-fill.c3 { background: #10b981; }
+    .bar-fill.c4 { background: #f59e0b; }
+    .bar-fill.c5 { background: #ef4444; }
+  </style>
 </head>
 <body>
 
@@ -84,6 +128,9 @@
         <button class="nav-btn" data-tab="nurses" style="display:none" onclick="switchTab(this,'nurses')">
           <span class="nav-icon">💊</span> Nurses
         </button>
+        <button class="nav-btn" data-tab="treatments" style="display:none" onclick="switchTab(this,'treatments')">
+          <span class="nav-icon">🔬</span> Treatments
+        </button>
 
         <!-- Doctor / Nurse nav -->
         <div class="nav-section-label">My Work</div>
@@ -99,12 +146,21 @@
           <span class="nav-icon">🏠</span> My Health Portal
         </button>
 
+        <!-- Billing nav -->
+        <button class="nav-btn" data-tab="billing" style="display:none" onclick="switchTab(this,'billing')">
+          <span class="nav-icon">💳</span> Billing
+        </button>
+
         <div class="nav-section-label admin-only" style="display:none">Administration</div>
         <button class="nav-btn admin-only" data-tab="users" style="display:none" onclick="switchTab(this,'users')">
           <span class="nav-icon">🔐</span> System Users
         </button>
         <button class="nav-btn admin-only" data-tab="admins" style="display:none" onclick="switchTab(this,'admins')">
           <span class="nav-icon">🏥</span> Hospital Admins
+        </button>
+        <div class="nav-section-label admin-only" style="display:none">Analytics</div>
+        <button class="nav-btn admin-only" data-tab="reports" style="display:none" onclick="switchTab(this,'reports')">
+          <span class="nav-icon">📊</span> Reports
         </button>
       </nav>
 
@@ -168,6 +224,26 @@
           <table id="nurses-table">
             <thead><tr></tr></thead>
             <tbody><tr><td colspan="99" class="empty-state">Loading nurses…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TREATMENTS TAB (admin only) -->
+      <section id="tab-treatments" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>Treatments</h2>
+            <p class="panel-sub">Manage treatments — adding or removing one automatically recalculates billing</p>
+          </div>
+          <button class="btn-primary" onclick="openModal('add-treatment-modal')">+ Add Treatment</button>
+        </div>
+        <div class="search-bar">
+          <input type="search" placeholder="Search treatments…" oninput="filterTable('treatments-table', this.value)">
+        </div>
+        <div class="table-wrap">
+          <table id="treatments-table">
+            <thead><tr></tr></thead>
+            <tbody><tr><td colspan="99" class="empty-state">Loading treatments…</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -274,6 +350,128 @@
           <table id="admins-table">
             <thead><tr></tr></thead>
             <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- REPORTS TAB (admin only) -->
+      <section id="tab-reports" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>Managerial Reports</h2>
+            <p class="panel-sub">Aggregate statistics across the entire hospital system</p>
+          </div>
+          <button class="btn-primary" onclick="loadReports()">↻ Refresh</button>
+        </div>
+
+        <!-- KPI Summary Cards -->
+        <div id="report-kpis" class="report-kpis"></div>
+
+        <!-- Report 1: Billing by Status -->
+        <div class="report-card">
+          <div class="report-card-header">
+            <div>
+              <h3 class="report-title">📋 Report 1 — Billing Overview by Payment Status</h3>
+              <p class="report-desc">COUNT, SUM, AVG, MIN, MAX of all billing records grouped by payment status</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="report-billing-table">
+              <thead><tr></tr></thead><tbody><tr><td class="empty-state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+          <div id="report-billing-chart" class="report-chart"></div>
+        </div>
+
+        <!-- Report 2: Appointments by Department -->
+        <div class="report-card">
+          <div class="report-card-header">
+            <h3 class="report-title">🏥 Report 2 — Appointment Volume by Department</h3>
+            <p class="report-desc">COUNT of appointments per department with Completed / Scheduled / Canceled breakdown, and MIN / MAX dates</p>
+          </div>
+          <div class="table-wrap">
+            <table id="report-appts-table">
+              <thead><tr></tr></thead><tbody><tr><td class="empty-state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+          <div id="report-appts-chart" class="report-chart"></div>
+        </div>
+
+        <!-- Report 3: Treatment Cost by Department -->
+        <div class="report-card">
+          <div class="report-card-header">
+            <h3 class="report-title">💊 Report 3 — Treatment Cost Analysis by Department</h3>
+            <p class="report-desc">COUNT, SUM, AVG, MIN, MAX treatment costs rolled up by hospital department</p>
+          </div>
+          <div class="table-wrap">
+            <table id="report-treatment-table">
+              <thead><tr></tr></thead><tbody><tr><td class="empty-state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+          <div id="report-treatment-chart" class="report-chart"></div>
+        </div>
+
+        <!-- Report 4: Doctor Workload -->
+        <div class="report-card">
+          <div class="report-card-header">
+            <h3 class="report-title">🩺 Report 4 — Doctor Workload &amp; Revenue</h3>
+            <p class="report-desc">COUNT of appointments, SUM / AVG / MIN / MAX billing revenue per doctor</p>
+          </div>
+          <div class="table-wrap">
+            <table id="report-doctors-table">
+              <thead><tr></tr></thead><tbody><tr><td class="empty-state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+          <div id="report-doctors-chart" class="report-chart"></div>
+        </div>
+
+        <!-- Report 5: Insurance Analysis -->
+        <div class="report-card">
+          <div class="report-card-header">
+            <h3 class="report-title">🛡️ Report 5 — Insurance Provider Coverage Analysis</h3>
+            <p class="report-desc">COUNT of patients &amp; claims, SUM / AVG / MIN / MAX insurance coverage per provider</p>
+          </div>
+          <div class="table-wrap">
+            <table id="report-insurance-table">
+              <thead><tr></tr></thead><tbody><tr><td class="empty-state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+          <div id="report-insurance-chart" class="report-chart"></div>
+        </div>
+
+      </section>
+
+      <!-- BILLING TAB (admin, receptionist, doctor, nurse, patient) -->
+      <section id="tab-billing" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>Billing &amp; Payments</h2>
+            <p class="panel-sub">View and manage billing records</p>
+          </div>
+          <button class="btn-primary" onclick="loadBilling()">↻ Refresh</button>
+        </div>
+
+        <div class="table-wrap">
+          <table id="billing-table">
+            <thead>
+              <tr>
+                <th>Billing ID</th>
+                <th>Patient</th>
+                <th>Appt</th>
+                <th>Date</th>
+                <th>Total Cost</th>
+                <th>Insurance Paid</th>
+                <th>Patient Owes</th>
+                <th>Patient Paid</th>
+                <th>Balance Due</th>
+                <th>Status</th>
+                <th>Method</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="12" class="empty-state">Loading billing records…</td></tr>
+            </tbody>
           </table>
         </div>
       </section>
@@ -410,6 +608,40 @@
     </div>
   </div>
 
+  <!-- Add Treatment (admin only) -->
+  <div id="add-treatment-modal" class="modal-overlay" style="display:none">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h3>Add Treatment</h3>
+        <button class="modal-close" onclick="closeModal('add-treatment-modal')">✕</button>
+      </div>
+      <form id="treatment-form" class="modal-form">
+        <label>Appointment ID
+          <input name="AppointmentID" type="number" min="1" placeholder="e.g. 5" required>
+        </label>
+        <div class="form-row">
+          <label>Diagnosis ID <span class="optional">(optional)</span>
+            <input name="DiagnosisID" type="number" min="1" placeholder="Leave blank if none">
+          </label>
+          <label>Treatment Name
+            <input name="TreatmentName" placeholder="e.g. Blood Panel" required>
+          </label>
+        </div>
+        <label>Description
+          <input name="Description" placeholder="Brief description of the treatment">
+        </label>
+        <label>Treatment Cost ($)
+          <input name="TreatmentCost" type="number" min="0" step="0.01" placeholder="0.00" required>
+        </label>
+        <p class="auth-note">Billing for the linked appointment will be recalculated automatically after saving.</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('add-treatment-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Add Treatment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Create System User (admin) -->
   <div id="add-user-modal" class="modal-overlay" style="display:none">
     <div class="modal">
@@ -424,6 +656,7 @@
           <select name="role">
             <option value="admin">Administrator</option>
             <option value="doctor">Doctor</option>
+            <option value="nurse">Nurse</option>
             <option value="receptionist">Receptionist</option>
             <option value="patient" selected>Patient</option>
           </select>
@@ -591,6 +824,37 @@
         <div class="modal-actions">
           <button type="button" class="btn-ghost" onclick="closeModal('edit-appt-modal')">Cancel</button>
           <button type="submit" class="btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── PAY / UPDATE BILLING MODAL ───────────────────────── -->
+  <div id="pay-billing-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Record Payment</h3>
+        <button class="modal-close" onclick="closeModal('pay-billing-modal')">✕</button>
+      </div>
+      <form id="pay-billing-form" class="modal-form">
+        <p class="auth-note">
+          Billing ID: <strong id="pay-billing-id">—</strong> &nbsp;|&nbsp;
+          Balance Due: <strong id="pay-balance-due">—</strong>
+        </p>
+        <label>Payment Amount ($)
+          <input id="pay-amount-input" name="AmountPaid" type="number" min="0" step="0.01" placeholder="0.00" required>
+        </label>
+        <label>Payment Method
+          <select id="pay-method-select" name="PaymentMethod">
+            <option value="Card">Card</option>
+            <option value="Cash">Cash</option>
+            <option value="Insurance">Insurance</option>
+            <option value="Waived">Waived</option>
+          </select>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('pay-billing-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Submit Payment</button>
         </div>
       </form>
     </div>
