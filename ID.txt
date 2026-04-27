@@ -28,8 +28,6 @@ Peter:
     Development of reporting facility
     Filling out slide deck
 
-    Slide deck development and fleshing out
-
 AI Disclosure:
 We aimed to complete most of this project with our own work, but due to time constraints
 as well as some tedious (yet extensive) requirements, we chose to use Claude Sonnet 4.6
