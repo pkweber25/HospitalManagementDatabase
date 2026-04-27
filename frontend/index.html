@@ -3,145 +3,601 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Hospital Management</title>
+  <title>CareFlow — Hospital Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <header>
-    <h1>Hospital Management</h1>
-    <nav>
-      <button onclick="showTab('patients')">Patients</button>
-      <button onclick="showTab('doctors')">Doctors</button>
-      <button onclick="showTab('appointments')">Appointments</button>
-      <button id="nav-admins" onclick="showTab('admins')" style="display:none">Hospital Admins</button>
-      <button id="nav-users" onclick="showTab('users')" style="display:none">System Logins</button>
-    </nav>
-    <div id="auth">
-      <div id="logged-out">
-        <form id="login-form">
-          <input name="username" placeholder="Username" required>
-          <input name="password" placeholder="Password" type="password" required>
-          <button type="submit">Login</button>
-        </form>
-        <form id="register-form">
-          <input name="username" placeholder="Username" required>
-          <input name="password" placeholder="Password" type="password" required>
-          <input name="full_name" placeholder="Full Name (optional)">
-          <button type="submit">Register</button>
-        </form>
+
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="brand-icon">✦</div>
+        <h1>CareFlow</h1>
+        <p>Hospital Management System</p>
       </div>
-      <div id="logged-in" style="display:none">
-        <span id="user-info"></span>
-        <button id="logout-btn">Logout</button>
-        <form id="change-password-form" style="display:inline-flex;gap:6px;margin-left:12px">
-          <input name="current_password" placeholder="Current password" type="password" required>
-          <input name="new_password" placeholder="New password" type="password" required>
-          <button type="submit">Change Password</button>
-        </form>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('login')">Sign In</button>
+        <button class="auth-tab" onclick="switchAuthTab('register')">Register</button>
       </div>
+
+      <form id="login-form" class="auth-form">
+        <label>Username
+          <input name="username" placeholder="Enter your username" required autocomplete="username">
+        </label>
+        <label>Password
+          <input name="password" type="password" placeholder="Enter your password" required autocomplete="current-password">
+        </label>
+        <button type="submit" class="btn-primary btn-full">Sign In →</button>
+      </form>
+
+      <form id="register-form" class="auth-form" style="display:none">
+        <p class="auth-note">Self-registration creates a patient account.</p>
+        <label>Username
+          <input name="username" placeholder="Choose a username" required autocomplete="username">
+        </label>
+        <label>Password
+          <input name="password" type="password" placeholder="Choose a password" required autocomplete="new-password">
+        </label>
+        <label>Full Name <span class="optional">(optional)</span>
+          <input name="full_name" placeholder="Your full name">
+        </label>
+        <button type="submit" class="btn-primary btn-full">Create Account →</button>
+      </form>
     </div>
-  </header>
+  </div>
 
-  <main>
-    <section id="patients" class="tab">
-      <h2>Patients</h2>
-      <form id="patient-form">
-        <input name="PatientID" placeholder="ID" required>
-        <input name="FirstName" placeholder="First" required>
-        <input name="LastName" placeholder="Last" required>
-        <input name="DOB" placeholder="YYYY-MM-DD" type="date">
-        <select name="Gender">
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
-          <option value="Other">Other</option>
-        </select>
-        <input name="Phone" placeholder="Phone">
-        <input name="Address" placeholder="Address">
-        <select name="ProviderID" required>
-          <option value="" disabled selected>Select Insurance</option>
-          <option value="1">BlueCross Health</option>
-          <option value="2">Aetna Secure</option>
-          <option value="3">Medicare Standard</option>
-          <option value="4">Cigna Care</option>
-          <option value="5">UnitedHealth Group</option>
-        </select>
-        <button type="submit">Add Patient</button>
-      </form>
-      <table id="patients-table"><thead><tr></tr></thead><tbody></tbody></table>
-    </section>
+  <!-- MAIN APP -->
+  <div id="app" style="display:none">
+    <aside id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">✦</div>
+        <span>CareFlow</span>
+      </div>
 
-    <section id="doctors" class="tab" style="display:none">
-      <h2>Doctors</h2>
-      <form id="doctor-form">
-        <input name="DoctorID" placeholder="ID" required>
-        <input name="FirstName" placeholder="First" required>
-        <input name="LastName" placeholder="Last" required>
-        <input name="Specialty" placeholder="Specialty">
-        <input name="Phone" placeholder="Phone">
-        <select name="DepartmentID" required>
-          <option value="" disabled selected>Select Department</option>
-          <option value="1">Cardiology</option>
-          <option value="2">Pediatrics</option>
-          <option value="3">Emergency</option>
-          <option value="4">Oncology</option>
-          <option value="5">Neurology</option>
-        </select>
-        <button type="submit">Add Doctor</button>
-      </form>
-      <table id="doctors-table"><thead><tr></tr></thead><tbody></tbody></table>
-    </section>
+      <div class="sidebar-user">
+        <div class="user-avatar" id="user-avatar">A</div>
+        <div>
+          <div id="user-info" class="user-name">Loading…</div>
+          <div id="user-role-badge" class="user-role">—</div>
+        </div>
+      </div>
 
-    <section id="appointments" class="tab" style="display:none">
-      <h2>Appointments</h2>
-      <form id="appt-form">
-        <input name="AppointmentID" placeholder="ID" required>
-        <input name="PatientID" placeholder="Patient ID (e.g., 1)" required>
-        <input name="DoctorID" placeholder="Doctor ID (e.g., 1)" required>
-        <input name="NurseID" placeholder="Nurse ID (e.g., 1)" required>
-        <input name="AppointmentDate" type="date" required>
-        <input name="AppointmentTime" type="time" required>
-        <select name="Status">
-          <option value="Scheduled">Scheduled</option>
-          <option value="Completed">Completed</option>
-          <option value="Canceled">Canceled</option>
-        </select>
-        <input name="Purpose" placeholder="Purpose">
-        <button type="submit">Add Appointment</button>
-      </form>
-      <table id="appts-table"><thead><tr></tr></thead><tbody></tbody></table>
-    </section>
+      <nav class="sidebar-nav">
+        <!-- Admin / Receptionist nav -->
+        <div class="nav-section-label">Patient Care</div>
+        <button class="nav-btn active" data-tab="patients" style="display:none" onclick="switchTab(this,'patients')">
+          <span class="nav-icon">👤</span> Patients
+        </button>
+        <button class="nav-btn" data-tab="appointments" style="display:none" onclick="switchTab(this,'appointments')">
+          <span class="nav-icon">📅</span> Appointments
+        </button>
 
-    <section id="users" class="tab" style="display:none">
-      <h2>System Logins & Passwords</h2>
-      <form id="create-user-form">
-        <input name="username" placeholder="Username" required>
-        <input name="password" placeholder="Password" type="password" required>
-        <select name="role">
-          <option value="admin">admin</option>
-          <option value="doctor">doctor</option>
-          <option value="receptionist">receptionist</option>
-          <option value="patient" selected>patient</option>
-        </select>
-        <input name="full_name" placeholder="Full Name">
-        <button type="submit">Create User</button>
-      </form>
-      <table id="users-table"><thead><tr></tr></thead><tbody></tbody></table>
-      <button id="refresh-users" onclick="fetchUsers()">Refresh</button>
-    </section>
+        <div class="nav-section-label">Clinical</div>
+        <button class="nav-btn" data-tab="doctors" style="display:none" onclick="switchTab(this,'doctors')">
+          <span class="nav-icon">🩺</span> Doctors
+        </button>
+        <button class="nav-btn" data-tab="nurses" style="display:none" onclick="switchTab(this,'nurses')">
+          <span class="nav-icon">💊</span> Nurses
+        </button>
 
-    <section id="admins" class="tab" style="display:none">
-      <h2>Hospital Admins (Personnel)</h2>
-      <form id="admin-form">
-        <input name="AdminID" placeholder="Admin ID (e.g., 1)" required>
-        <input name="FirstName" placeholder="First Name" required>
-        <input name="LastName" placeholder="Last Name" required>
-        <input name="Email" placeholder="Email" required>
-        <input name="Role" placeholder="Role" required>
-        <button type="submit">Add Admin Record</button>
+        <!-- Doctor / Nurse nav -->
+        <div class="nav-section-label">My Work</div>
+        <button class="nav-btn" data-tab="my-appointments" style="display:none" onclick="switchTab(this,'my-appointments')">
+          <span class="nav-icon">📋</span> My Appointments
+        </button>
+        <button class="nav-btn" data-tab="my-patients" style="display:none" onclick="switchTab(this,'my-patients')">
+          <span class="nav-icon">👥</span> My Patients
+        </button>
+
+        <!-- Patient portal nav -->
+        <button class="nav-btn" data-tab="portal" style="display:none" onclick="switchTab(this,'portal')">
+          <span class="nav-icon">🏠</span> My Health Portal
+        </button>
+
+        <div class="nav-section-label admin-only" style="display:none">Administration</div>
+        <button class="nav-btn admin-only" data-tab="users" style="display:none" onclick="switchTab(this,'users')">
+          <span class="nav-icon">🔐</span> System Users
+        </button>
+        <button class="nav-btn admin-only" data-tab="admins" style="display:none" onclick="switchTab(this,'admins')">
+          <span class="nav-icon">🏥</span> Hospital Admins
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="btn-ghost" onclick="openPasswordModal()">Change Password</button>
+        <button class="btn-danger-ghost" id="logout-btn">Sign Out</button>
+      </div>
+    </aside>
+
+    <main id="main-content">
+
+      <!-- PATIENTS TAB -->
+      <section id="tab-patients" class="tab-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Patients</h2>
+            <p class="panel-sub">Manage patient records and insurance information</p>
+          </div>
+          <button class="btn-primary" onclick="openModal('add-patient-modal')">+ Register Patient</button>
+        </div>
+        <div class="search-bar">
+          <input id="patient-search" type="search" placeholder="Search patients by name…" oninput="filterTable('patients-table', this.value)">
+        </div>
+        <div class="table-wrap">
+          <table id="patients-table">
+            <thead><tr></tr></thead>
+            <tbody><tr><td colspan="99" class="empty-state">Loading patients…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- DOCTORS TAB -->
+      <section id="tab-doctors" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>Doctors</h2>
+            <p class="panel-sub">Clinical staff and department assignments</p>
+          </div>
+          <button class="btn-primary admin-receptionist-only" onclick="openModal('add-doctor-modal')">+ Add Doctor</button>
+        </div>
+        <div class="search-bar">
+          <input type="search" placeholder="Search by name or specialty…" oninput="filterTable('doctors-table', this.value)">
+        </div>
+        <div class="table-wrap">
+          <table id="doctors-table">
+            <thead><tr></tr></thead>
+            <tbody><tr><td colspan="99" class="empty-state">Loading doctors…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- NURSES TAB -->
+      <section id="tab-nurses" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>Nurses</h2>
+            <p class="panel-sub">Nursing staff and certifications</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="nurses-table">
+            <thead><tr></tr></thead>
+            <tbody><tr><td colspan="99" class="empty-state">Loading nurses…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- APPOINTMENTS TAB -->
+      <section id="tab-appointments" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>Appointments</h2>
+            <p class="panel-sub">Schedule and manage patient visits</p>
+          </div>
+          <button class="btn-primary" onclick="openModal('add-appt-modal')">+ Schedule Appointment</button>
+        </div>
+        <div class="search-bar">
+          <input type="search" placeholder="Search appointments…" oninput="filterTable('appts-table', this.value)">
+        </div>
+        <div class="table-wrap">
+          <table id="appts-table">
+            <thead><tr></tr></thead>
+            <tbody><tr><td colspan="99" class="empty-state">Loading appointments…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- DOCTOR / NURSE: My Appointments -->
+      <section id="tab-my-appointments" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>My Appointments</h2>
+            <p class="panel-sub">Appointments assigned to you</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="my-appts-table">
+            <thead><tr></tr></thead>
+            <tbody><tr><td class="empty-state">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- DOCTOR / NURSE: My Patients -->
+      <section id="tab-my-patients" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>My Patients</h2>
+            <p class="panel-sub">Patients from your appointments</p>
+          </div>
+        </div>
+        <div class="search-bar">
+          <input type="search" placeholder="Search patients…" oninput="filterTable('my-patients-table', this.value)">
+        </div>
+        <div class="table-wrap">
+          <table id="my-patients-table">
+            <thead><tr></tr></thead>
+            <tbody><tr><td class="empty-state">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PATIENT PORTAL -->
+      <section id="tab-portal" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>My Health Portal</h2>
+            <p class="panel-sub">View and manage your appointments</p>
+          </div>
+          <button class="btn-primary" onclick="openModal('portal-appt-modal')">+ Request Appointment</button>
+        </div>
+        <div class="table-wrap">
+          <table id="portal-appts-table">
+            <thead><tr></tr></thead>
+            <tbody><tr><td class="empty-state">Loading your appointments…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- USERS TAB (admin only) -->
+      <section id="tab-users" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>System Users</h2>
+            <p class="panel-sub">Manage login accounts and access roles</p>
+          </div>
+          <button class="btn-primary" onclick="openModal('add-user-modal')">+ Create User</button>
+        </div>
+        <div class="table-wrap">
+          <table id="users-table">
+            <thead><tr></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ADMINS TAB (admin only) -->
+      <section id="tab-admins" class="tab-panel" style="display:none">
+        <div class="panel-header">
+          <div>
+            <h2>Hospital Administrators</h2>
+            <p class="panel-sub">Personnel records for administrative staff</p>
+          </div>
+          <button class="btn-primary" onclick="openModal('add-admin-modal')">+ Add Admin Record</button>
+        </div>
+        <div class="table-wrap">
+          <table id="admins-table">
+            <thead><tr></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ======= MODALS ======= -->
+
+  <!-- Add Patient -->
+  <div id="add-patient-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Register New Patient</h3>
+        <button class="modal-close" onclick="closeModal('add-patient-modal')">✕</button>
+      </div>
+      <form id="patient-form" class="modal-form">
+        <div class="form-row">
+          <label>First Name <input name="FirstName" placeholder="e.g. Jane" required></label>
+          <label>Last Name <input name="LastName" placeholder="e.g. Smith" required></label>
+        </div>
+        <div class="form-row">
+          <label>Date of Birth <input name="DOB" type="date" required></label>
+          <label>Gender
+            <select name="Gender">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Phone Number <input name="Phone" placeholder="e.g. 555-0123"></label>
+          <label>Insurance Provider
+            <select name="ProviderID" required>
+              <option value="" disabled selected>Select provider…</option>
+              <option value="1">BlueCross Health</option>
+              <option value="2">Aetna Secure</option>
+              <option value="3">Medicare Standard</option>
+              <option value="4">Cigna Care</option>
+              <option value="5">UnitedHealth Group</option>
+            </select>
+          </label>
+        </div>
+        <label>Home Address <input name="Address" placeholder="e.g. 123 Main St, Springfield"></label>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('add-patient-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Register Patient</button>
+        </div>
       </form>
-      <table id="admins-table"><thead><tr></tr></thead><tbody></tbody></table>
-    </section>
-  </main>
+    </div>
+  </div>
+
+  <!-- Add Doctor -->
+  <div id="add-doctor-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Add Doctor</h3>
+        <button class="modal-close" onclick="closeModal('add-doctor-modal')">✕</button>
+      </div>
+      <form id="doctor-form" class="modal-form">
+        <div class="form-row">
+          <label>First Name <input name="FirstName" placeholder="e.g. Gregory" required></label>
+          <label>Last Name <input name="LastName" placeholder="e.g. House" required></label>
+        </div>
+        <div class="form-row">
+          <label>Specialty <input name="Specialty" placeholder="e.g. Cardiology"></label>
+          <label>Phone <input name="Phone" placeholder="555-0100"></label>
+        </div>
+        <label>Department
+          <select name="DepartmentID" required>
+            <option value="" disabled selected>Assign to department…</option>
+            <option value="1">Cardiology</option>
+            <option value="2">Pediatrics</option>
+            <option value="3">Emergency</option>
+            <option value="4">Oncology</option>
+            <option value="5">Neurology</option>
+          </select>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('add-doctor-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Add Doctor</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Schedule Appointment -->
+  <div id="add-appt-modal" class="modal-overlay" style="display:none">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h3>Schedule Appointment</h3>
+        <button class="modal-close" onclick="closeModal('add-appt-modal')">✕</button>
+      </div>
+      <form id="appt-form" class="modal-form">
+        <label>Patient
+          <select name="PatientID" id="appt-patient-select" required>
+            <option value="" disabled selected>Select patient…</option>
+          </select>
+        </label>
+        <div class="form-row">
+          <label>Doctor
+            <select name="DoctorID" id="appt-doctor-select" required>
+              <option value="" disabled selected>Select doctor…</option>
+            </select>
+          </label>
+          <label>Nurse
+            <select name="NurseID" id="appt-nurse-select" required>
+              <option value="" disabled selected>Select nurse…</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Date <input name="AppointmentDate" type="date" required></label>
+          <label>Time <input name="AppointmentTime" type="time" required></label>
+        </div>
+        <div class="form-row">
+          <label>Status
+            <select name="Status">
+              <option value="Scheduled">Scheduled</option>
+              <option value="Completed">Completed</option>
+              <option value="Canceled">Canceled</option>
+            </select>
+          </label>
+          <label>Purpose / Reason for Visit
+            <input name="Purpose" placeholder="e.g. Annual check-up, follow-up…">
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('add-appt-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Schedule Appointment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create System User (admin) -->
+  <div id="add-user-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Create System User</h3>
+        <button class="modal-close" onclick="closeModal('add-user-modal')">✕</button>
+      </div>
+      <form id="create-user-form" class="modal-form">
+        <label>Username <input name="username" placeholder="login username" required></label>
+        <label>Password <input name="password" type="password" placeholder="temporary password" required></label>
+        <label>Access Role
+          <select name="role">
+            <option value="admin">Administrator</option>
+            <option value="doctor">Doctor</option>
+            <option value="receptionist">Receptionist</option>
+            <option value="patient" selected>Patient</option>
+          </select>
+        </label>
+        <label>Full Name <input name="full_name" placeholder="Display name (optional)"></label>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('add-user-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Create User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Hospital Admin -->
+  <div id="add-admin-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Add Admin Personnel Record</h3>
+        <button class="modal-close" onclick="closeModal('add-admin-modal')">✕</button>
+      </div>
+      <form id="admin-form" class="modal-form">
+        <div class="form-row">
+          <label>First Name <input name="FirstName" required></label>
+          <label>Last Name <input name="LastName" required></label>
+        </div>
+        <label>Email <input name="Email" type="email" required></label>
+        <label>Administrative Role <input name="Role" placeholder="e.g. Department Head, Finance Officer" required></label>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('add-admin-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Add Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Patient Portal: Request Appointment -->
+  <div id="portal-appt-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Request an Appointment</h3>
+        <button class="modal-close" onclick="closeModal('portal-appt-modal')">✕</button>
+      </div>
+      <form id="portal-appt-form" class="modal-form">
+        <label>Choose a Doctor
+          <select id="portal-doctor-select" name="DoctorID" required>
+            <option value="" disabled selected>Choose a doctor…</option>
+          </select>
+        </label>
+        <div class="form-row">
+          <label>Preferred Date <input name="AppointmentDate" type="date" required></label>
+          <label>Preferred Time <input name="AppointmentTime" type="time" required></label>
+        </div>
+        <label>Reason for Visit
+          <input name="Purpose" placeholder="e.g. Follow-up, chest pain, annual check-up…" required>
+        </label>
+        <p class="auth-note">A nurse will be automatically assigned. Reception will confirm your appointment.</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('portal-appt-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Request Appointment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div id="change-password-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Change Your Password</h3>
+        <button class="modal-close" onclick="closeModal('change-password-modal')">✕</button>
+      </div>
+      <form id="change-password-form" class="modal-form">
+        <label>Current Password
+          <input name="current_password" type="password" required autocomplete="current-password">
+        </label>
+        <label>New Password
+          <input name="new_password" type="password" required autocomplete="new-password">
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('change-password-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Update Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Patient Modal -->
+  <div id="edit-patient-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Edit Patient</h3>
+        <button class="modal-close" onclick="closeModal('edit-patient-modal')">✕</button>
+      </div>
+      <form id="edit-patient-form" class="modal-form">
+        <input type="hidden" name="PatientID">
+        <div class="form-row">
+          <label>First Name <input name="FirstName" required></label>
+          <label>Last Name <input name="LastName" required></label>
+        </div>
+        <div class="form-row">
+          <label>Date of Birth <input name="DOB" type="date" required></label>
+          <label>Gender
+            <select name="Gender">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Phone <input name="Phone"></label>
+          <label>Insurance Provider
+            <select name="ProviderID">
+              <option value="1">BlueCross Health</option>
+              <option value="2">Aetna Secure</option>
+              <option value="3">Medicare Standard</option>
+              <option value="4">Cigna Care</option>
+              <option value="5">UnitedHealth Group</option>
+            </select>
+          </label>
+        </div>
+        <label>Address <input name="Address"></label>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('edit-patient-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Appointment Modal -->
+  <div id="edit-appt-modal" class="modal-overlay" style="display:none">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h3>Edit Appointment</h3>
+        <button class="modal-close" onclick="closeModal('edit-appt-modal')">✕</button>
+      </div>
+      <form id="edit-appt-form" class="modal-form">
+        <input type="hidden" name="AppointmentID">
+        <label>Patient
+          <select name="PatientID" id="edit-appt-patient-select" required></select>
+        </label>
+        <div class="form-row">
+          <label>Doctor
+            <select name="DoctorID" id="edit-appt-doctor-select" required></select>
+          </label>
+          <label>Nurse
+            <select name="NurseID" id="edit-appt-nurse-select" required></select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Date <input name="AppointmentDate" type="date" required></label>
+          <label>Time <input name="AppointmentTime" type="time" required></label>
+        </div>
+        <div class="form-row">
+          <label>Status
+            <select name="Status">
+              <option value="Scheduled">Scheduled</option>
+              <option value="Completed">Completed</option>
+              <option value="Canceled">Canceled</option>
+            </select>
+          </label>
+          <label>Purpose <input name="Purpose"></label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="closeModal('edit-appt-modal')">Cancel</button>
+          <button type="submit" class="btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast"></div>
 
   <script src="/static/app.js"></script>
 </body>

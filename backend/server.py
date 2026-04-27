@@ -19,7 +19,7 @@ CORS(app) # Allows local HTML file to fetch data from this API
 # Project paths and JWT config
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 FRONTEND_DIR = os.path.join(PROJECT_ROOT, 'frontend')
-JWT_SECRET = os.getenv("JWT_SECRET", "SECRET_KEY")
+JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-this-in-production-12345678")
 JWT_ALGO = os.getenv("JWT_ALGO", "HS256")
 
 # ---------------- DATABASE CONNECTION ----------------
@@ -43,49 +43,49 @@ def ensure_users_table():
         username VARCHAR(255) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL,
         role VARCHAR(50) NOT NULL,
-        full_name VARCHAR(255)
+        full_name VARCHAR(255),
+        patient_record_id INT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
     conn.commit()
-    # Seed a single admin if no users exist
+    # Helper: safely add a column to an existing table, no-op if it already exists.
+    def safe_add_column(table, column, definition):
+        c = conn.cursor()
+        try:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        finally:
+            c.close()
+
+    safe_add_column("Users",       "patient_record_id", "INT NULL")
+    safe_add_column("Appointment", "NurseID",           "INT NULL")
+
+    # Always ensure the admin account exists.
+    # INSERT IGNORE is a no-op if the username already exists, so this is safe on every restart.
+    admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+    admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
+    admin_full_name = os.getenv('ADMIN_FULL_NAME', 'System Administrator')
+    if not admin_password:
+        admin_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+        print(f"[startup] Generated admin password: {admin_password}")
+    password_hash = generate_password_hash(admin_password)
+    admin_cursor = conn.cursor()
     try:
-        cursor.execute("SELECT COUNT(*) FROM Users")
-        row = cursor.fetchone()
-        count = 0
-        if row:
-            # cursor.fetchone() may return tuple
-            if isinstance(row, tuple):
-                count = row[0]
-            elif isinstance(row, dict):
-                # some libraries may return dict
-                count = row.get('COUNT(*)', 0)
-            else:
-                try:
-                    count = int(row)
-                except Exception:
-                    count = 0
-        if count == 0:
-            admin_username = os.getenv('ADMIN_USERNAME', 'admin')
-            admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
-            admin_full_name = os.getenv('ADMIN_FULL_NAME', 'System Administrator')
-            generated = False
-            if not admin_password:
-                admin_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
-                generated = True
-            password_hash = generate_password_hash(admin_password)
-            try:
-                cursor.execute("INSERT INTO Users (username,password_hash,role,full_name) VALUES (%s,%s,%s,%s)",
-                               (admin_username, password_hash, 'admin', admin_full_name))
-                conn.commit()
-                if generated:
-                    print(f"Seeded admin user: username='{admin_username}', password='{admin_password}'")
-                else:
-                    print(f"Seeded admin user: username='{admin_username}' (password from ADMIN_PASSWORD env)")
-            except Exception as e:
-                print('Failed to seed admin user:', e)
+        admin_cursor.execute(
+            "INSERT IGNORE INTO Users (username, password_hash, role, full_name) VALUES (%s,%s,'admin',%s)",
+            (admin_username, password_hash, admin_full_name)
+        )
+        conn.commit()
+        if admin_cursor.rowcount > 0:
+            print(f"[startup] Admin account created — username='{admin_username}' password='{admin_password}'")
+        else:
+            print(f"[startup] Admin account already exists — username='{admin_username}'")
     except Exception as e:
-        print('ensure_users_table: count check failed:', e)
+        print(f"[startup] Failed to ensure admin account: {e}")
     finally:
+        admin_cursor.close()
         cursor.close()
         conn.close()
 
@@ -146,14 +146,38 @@ def register():
     # Self-registration is only for patients
     role = 'patient'
     password_hash = generate_password_hash(password)
+    # Split full_name into first/last; fall back to username if omitted
+    if full_name:
+        parts = full_name.strip().split(' ', 1)
+        first_name = parts[0]
+        last_name  = parts[1] if len(parts) > 1 else ''
+    else:
+        first_name = username
+        last_name  = ''
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO Users (username,password_hash,role,full_name) VALUES (%s,%s,%s,%s)", (username, password_hash, role, full_name))
+        # Insert the login account
+        cursor.execute(
+            'INSERT INTO Users (username,password_hash,role,full_name) VALUES (%s,%s,%s,%s)',
+            (username, password_hash, role, full_name)
+        )
+        user_id = cursor.lastrowid
+        # Auto-create a linked Patient record so the portal works immediately
+        cursor.execute('SELECT COALESCE(MAX(PatientID), 0) + 1 FROM Patient')
+        new_patient_id = cursor.fetchone()[0]
+        cursor.execute(
+            'INSERT INTO Patient (PatientID, FirstName, LastName) VALUES (%s, %s, %s)',
+            (new_patient_id, first_name, last_name)
+        )
+        cursor.execute(
+            'UPDATE Users SET patient_record_id=%s WHERE id=%s',
+            (new_patient_id, user_id)
+        )
         conn.commit()
         return jsonify({'message': 'User registered', 'role': role}), 201
     except Exception as e:
-        # handle duplicate username gracefully
+        conn.rollback()
         if 'Duplicate' in str(e) or 'duplicate' in str(e) or '1062' in str(e):
             return jsonify({'error': 'Username already exists'}), 400
         return jsonify({'error': str(e)}), 500
@@ -369,6 +393,30 @@ def change_own_password():
         conn.close()
 
 
+# ---------------- PATIENT SELF-LOOKUP ----------------
+@app.route('/api/patients/me', methods=['GET'])
+@token_required
+@require_role('patient')
+def get_my_patient_record():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT patient_record_id FROM Users WHERE id=%s", (g.current_user.get('id'),))
+        row = cursor.fetchone()
+        pid = row.get('patient_record_id') if row else None
+        if not pid:
+            return jsonify({'error': 'No patient record linked to this account'}), 404
+        cursor.execute("SELECT * FROM Patient WHERE PatientID=%s", (pid,))
+        patient = cursor.fetchone()
+        if not patient:
+            return jsonify({'error': 'Patient record not found'}), 404
+        return jsonify(patient), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
 # ---------------- PATIENT ROUTES ----------------
 @app.route('/api/patients', methods=['POST'])
 @token_required
@@ -438,7 +486,7 @@ def add_doctor():
 
 @app.route('/api/doctors', methods=['GET'])
 @token_required
-@require_role('admin', 'receptionist', 'doctor')
+@require_role('admin', 'receptionist', 'doctor', 'patient')
 def get_doctors():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -455,17 +503,22 @@ def get_doctors():
 # ---------------- APPOINTMENT ROUTES ----------------
 @app.route('/api/appointments', methods=['POST'])
 @token_required
-@require_role('admin','receptionist','doctor')
+@require_role('admin','receptionist','doctor','patient')
 def add_appointment():
     data = request.json
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        # Auto-generate AppointmentID if not supplied (patient portal never sends one)
+        appt_id = data.get('AppointmentID') or None
+        if not appt_id:
+            cursor.execute("SELECT COALESCE(MAX(AppointmentID), 0) + 1 FROM Appointment")
+            appt_id = cursor.fetchone()[0]
         cursor.execute("""
         INSERT INTO Appointment (AppointmentID, PatientID, DoctorID, NurseID, AppointmentDate, AppointmentTime, Status, Purpose)
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
-            data.get('AppointmentID'), data.get('PatientID'), data.get('DoctorID'), data.get('NurseID'),
+            appt_id, data.get('PatientID'), data.get('DoctorID'), data.get('NurseID'),
             data.get('AppointmentDate'), data.get('AppointmentTime'), data.get('Status'), data.get('Purpose')
         ))
         conn.commit()
@@ -478,12 +531,25 @@ def add_appointment():
 
 @app.route('/api/appointments', methods=['GET'])
 @token_required
-@require_role('admin', 'receptionist', 'doctor')
+@require_role('admin', 'receptionist', 'doctor', 'patient')
 def get_appointments():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM Appointment")
+        user = getattr(g, 'current_user', {})
+        if user.get('role') == 'patient':
+            # Look up the patient's linked PatientID from the Users table
+            pid_cursor = conn.cursor(dictionary=True)
+            pid_cursor.execute('SELECT patient_record_id FROM Users WHERE id=%s', (user.get('id'),))
+            pid_row = pid_cursor.fetchone()
+            pid_cursor.close()
+            pid = pid_row.get('patient_record_id') if pid_row else None
+            if pid:
+                cursor.execute('SELECT * FROM Appointment WHERE PatientID=%s', (pid,))
+            else:
+                cursor.execute('SELECT * FROM Appointment WHERE 1=0')  # no linked record
+        else:
+            cursor.execute("SELECT * FROM Appointment")
         appointments = cursor.fetchall()
         
         # FIX: Convert dates and times to strings so Flask can jsonify them
@@ -561,6 +627,179 @@ def serve_index():
 @app.route('/static/<path:filename>', methods=['GET'])
 def serve_static(filename):
     return send_from_directory(FRONTEND_DIR, filename)
+
+
+# ============================================================
+# PATIENT  –  update + delete
+# ============================================================
+
+@app.route('/api/patients/<int:patient_id>', methods=['PUT'])
+@token_required
+@require_role('admin', 'receptionist')
+def update_patient(patient_id):
+    data = request.json or {}
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE Patient
+               SET FirstName=%s, LastName=%s, DOB=%s, Gender=%s,
+                   Phone=%s, Address=%s, ProviderID=%s
+             WHERE PatientID=%s
+        """, (
+            data.get('FirstName'), data.get('LastName'), data.get('DOB'),
+            data.get('Gender'),    data.get('Phone'),    data.get('Address'),
+            data.get('ProviderID'), patient_id
+        ))
+        conn.commit()
+        return jsonify({'message': 'Patient updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/patients/<int:patient_id>', methods=['DELETE'])
+@token_required
+@require_role('admin', 'receptionist')
+def delete_patient(patient_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM Patient WHERE PatientID=%s", (patient_id,))
+        conn.commit()
+        return jsonify({'message': 'Patient deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================================
+# DOCTOR  –  update + delete
+# ============================================================
+
+@app.route('/api/doctors/<int:doctor_id>', methods=['PUT'])
+@token_required
+@require_role('admin')
+def update_doctor(doctor_id):
+    data = request.json or {}
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE Doctor
+               SET FirstName=%s, LastName=%s, Specialty=%s,
+                   Phone=%s, DepartmentID=%s
+             WHERE DoctorID=%s
+        """, (
+            data.get('FirstName'), data.get('LastName'), data.get('Specialty'),
+            data.get('Phone'), data.get('DepartmentID'), doctor_id
+        ))
+        conn.commit()
+        return jsonify({'message': 'Doctor updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/doctors/<int:doctor_id>', methods=['DELETE'])
+@token_required
+@require_role('admin')
+def delete_doctor(doctor_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM Doctor WHERE DoctorID=%s", (doctor_id,))
+        conn.commit()
+        return jsonify({'message': 'Doctor deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================================
+# NURSE  –  GET
+# ============================================================
+
+@app.route('/api/nurses', methods=['GET'])
+@token_required
+@require_role('admin', 'receptionist', 'doctor', 'nurse', 'patient')
+def get_nurses():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM Nurse")
+        return jsonify(cursor.fetchall()), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================================
+# APPOINTMENT  –  update + delete
+# ============================================================
+
+@app.route('/api/appointments/<int:appt_id>', methods=['PUT'])
+@token_required
+@require_role('admin', 'receptionist', 'doctor', 'patient')
+def update_appointment(appt_id):
+    data = request.json or {}
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Patients may only update Status (to cancel their own)
+        if hasattr(g, 'current_user') and g.current_user.get('role') == 'patient':
+            cursor.execute(
+                "UPDATE Appointment SET Status=%s WHERE AppointmentID=%s",
+                (data.get('Status'), appt_id)
+            )
+        else:
+            cursor.execute("""
+                UPDATE Appointment
+                   SET PatientID=%s, DoctorID=%s, NurseID=%s,
+                       AppointmentDate=%s, AppointmentTime=%s,
+                       Status=%s, Purpose=%s
+                 WHERE AppointmentID=%s
+            """, (
+                data.get('PatientID'),       data.get('DoctorID'),
+                data.get('NurseID'),         data.get('AppointmentDate'),
+                data.get('AppointmentTime'), data.get('Status'),
+                data.get('Purpose'),         appt_id
+            ))
+        conn.commit()
+        # Serialize dates/times for the response
+        return jsonify({'message': 'Appointment updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/appointments/<int:appt_id>', methods=['DELETE'])
+@token_required
+@require_role('admin', 'receptionist', 'doctor')
+def delete_appointment(appt_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM Appointment WHERE AppointmentID=%s", (appt_id,))
+        conn.commit()
+        return jsonify({'message': 'Appointment deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
 
 if __name__ == '__main__':
     # Runs the server on localhost port 5000
